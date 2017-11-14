@@ -84,7 +84,6 @@ def getVggNet(height, width):
 
     for layer in vggnet.layers:
         layer.trainable = False
-
     x = vggnet.layers[1](inputs)         #block1_conv1
     out1 = vggnet.layers[2](x)      #block1_conv2
     x = vggnet.layers[3](out1)      #block1_pool
@@ -100,7 +99,7 @@ def getVggNet(height, width):
 
     x = vggnet.layers[11](x)         #block3_conv1
     x = vggnet.layers[12](x)         #block3_conv2
-    out4 = vggnet.layers[13](x)      #block3_conv3
+    out4 = vggnet.layers[13](x)      #block3_conv3}
 
     model = Model(inputs=inputs, outputs=[out1, out2, out3, out4])
     return model
@@ -108,11 +107,11 @@ def getVggNet(height, width):
 
 # gram_matric(x) is from keras example neural_style_transfer.py
 def gram_matrix(x):
-    assert K.ndim(x) == 4
+    assert K.ndim(x) == 3
     if K.image_data_format() == 'channels_first':
-        features = K.batch_flatten(x[0,:,:,:])
+        features = K.batch_flatten(x)
     else:
-        features = K.batch_flatten(K.permute_dimensions(x[0,:,:,:], (2, 0, 1)))
+        features = K.batch_flatten(K.permute_dimensions(x, (2, 0, 1)))
     gram = K.dot(features, K.transpose(features))
     return gram
 
@@ -127,32 +126,50 @@ def total_variation_loss(x):
     else:
         a = K.square(x[:, :img_nrows - 1, :img_ncols - 1, :] - x[:, 1:, :img_ncols - 1, :])
         b = K.square(x[:, :img_nrows - 1, :img_ncols - 1, :] - x[:, :img_nrows - 1, 1:, :])
-    return K.sum(K.pow(a + b, 1.25))
-
+    return K.sum(K.pow(a + b, 1.25), axis=[1,2,3])
+"""
 def allLoss(y_true, y_pred):
-    l_feat = K.mean(K.square(y_pred[5] - y_true[5]), axis=[0,1,2])
-    
-    l_style = K.sum(K.square(gram_matrix(y_true[1])-gram_matrix(y_pred[1]))) / ((256*256*64)**2)
-    l_style += K.sum(K.square(gram_matrix(y_true[2])-gram_matrix(y_pred[2]))) / ((128*128*128)**2)
-    l_style += K.sum(K.square(gram_matrix(y_true[3])-gram_matrix(y_pred[3]))) / ((64*64*256)**2)
-    l_style += K.sum(K.square(gram_matrix(y_true[4])-gram_matrix(y_pred[4]))) / ((32*32*512)**2)
+    l_feat = K.mean(K.square(y_pred[5] - y_true[5]), axis=[1,2,3])
+    bsize = K.shape(y_true)[0]
+    l_style = K.sum(y_true, axis=[1,2,3])
+    for i in range(0,bsize):
+        l_style[i] = K.sum(K.square(gram_matrix(y_true[1],i)-gram_matrix(y_pred[1],i)), axis=[0,1,2]) / ((256*256*64)**2)
+        l_style[i] += K.sum(K.square(gram_matrix(y_true[2],i)-gram_matrix(y_pred[2],i)), axis=[0,1,2]) / ((128*128*128)**2)
+        l_style[i] += K.sum(K.square(gram_matrix(y_true[3],i)-gram_matrix(y_pred[3],i)), axis=[0,1,2]) / ((64*64*256)**2)
+        l_style[i] += K.sum(K.square(gram_matrix(y_true[4],i)-gram_matrix(y_pred[4],i)), axis=[0,1,2]) / ((32*32*512)**2)
 
     return l_feat + l_style + 1e-5*total_variation_loss(y_pred[0])
-
+"""
 def featureLoss(y_true, y_pred):
-    return K.mean(K.square(y_pred - y_true), axis=[0,1,2])
+    return K.mean(K.square(y_pred - y_true), axis=[1,2,3])
 
 def styleLoss1(y_true, y_pred):
-    return K.sum(K.square(gram_matrix(y_true)-gram_matrix(y_pred))) / ((256*256*64)**2)
+    gm = []
+    for i in range(0,4):
+        gm.append(K.sum(K.square(gram_matrix(y_true[i,:,:,:])-gram_matrix(y_pred[i,:,:,:])) / ((256*256*64)**2), axis=[0,1]))
+    gm = K.stack(gm, axis=0)
+    return gm
 
 def styleLoss2(y_true, y_pred):
-    return K.sum(K.square(gram_matrix(y_true)-gram_matrix(y_pred))) / ((128*128*128)**2)
+    gm = []
+    for i in range(0,4):
+        gm.append(K.sum(K.square(gram_matrix(y_true[i,:,:,:])-gram_matrix(y_pred[i,:,:,:])) / ((128*128*128)**2), axis=[0,1]))
+    gm = K.stack(gm, axis=0)
+    return gm
 
 def styleLoss3(y_true, y_pred):
-    return K.sum(K.square(gram_matrix(y_true)-gram_matrix(y_pred))) / ((64*64*256)**2)
+    gm = []
+    for i in range(0,4):
+        gm.append(K.sum(K.square(gram_matrix(y_true[i,:,:,:])-gram_matrix(y_pred[i,:,:,:])) / ((64*64*256)**2), axis=[0,1]))
+    gm = K.stack(gm, axis=0)
+    return gm
 
 def styleLoss4(y_true, y_pred):
-    return K.sum(K.square(gram_matrix(y_true)-gram_matrix(y_pred))) / ((32*32*512)**2)
+    gm = []
+    for i in range(0,4):
+        gm.append(K.sum(K.square(gram_matrix(y_true[i,:,:,:])-gram_matrix(y_pred[i,:,:,:])) / ((32*32*512)**2), axis=[0,1]))
+    gm = K.stack(gm, axis=0)
+    return gm
 
 def TVLoss(y_true, y_pred):
     return total_variation_loss(y_pred)
